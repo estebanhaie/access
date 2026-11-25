@@ -76,8 +76,28 @@
 
   /* ===================== RÉSULTATS ===================== */
   ul.results { list-style:none; }
-  .row { display:flex; justify-content:space-between; align-items:center; gap:16px; padding:18px 0; border-bottom:1px solid var(--line); }
+  .row { display:flex; justify-content:space-between; align-items:center; gap:16px; padding:16px 0; border-bottom:1px solid var(--line); }
+  .info { min-width:0; flex:1; display:flex; justify-content:space-between; align-items:center; gap:16px; }
   .who { min-width:0; font-size:20px; }
+
+  /* Bouton de validation d'entrée */
+  .vbtn { flex-shrink:0; width:128px; height:56px; border:2px solid var(--fg); font-size:12px; font-weight:800;
+          letter-spacing:.14em; text-transform:uppercase; line-height:1.15; }
+  .vbtn:active { background:var(--fg); color:var(--bg); }
+  .vbtn.on { background:var(--fg); color:var(--bg); }
+  .vbtn.on small { display:block; font-weight:500; letter-spacing:.06em; margin-top:2px; }
+  .vbtn.wait { opacity:.5; }
+  .done-mark { display:inline-block; margin-left:8px; padding:2px 6px; background:var(--fg); color:var(--bg);
+               font-size:10px; font-weight:800; letter-spacing:.12em; vertical-align:4px; }
+
+  /* Compteurs validés / restants */
+  .stats { display:grid; grid-template-columns:repeat(3, 1fr); margin-top:12px; border:1px solid var(--fg); }
+  .stats div { padding:14px 16px; border-left:1px solid var(--fg); }
+  .stats div:first-child { border-left:0; }
+  .stats div.inv { background:var(--fg); color:var(--bg); }
+  .stats b { display:block; font-size:32px; font-weight:900; line-height:1; letter-spacing:-.02em; }
+  .stats span { display:block; margin-top:6px; font-size:10px; font-weight:700; letter-spacing:.14em; text-transform:uppercase; }
+  .flash.big { padding-top:28px; padding-bottom:calc(28px + env(safe-area-inset-bottom)); font-size:18px; }
   .nom { font-weight:800; text-transform:uppercase; letter-spacing:.01em; }
   .prenom { font-weight:400; }
   .struct { flex-shrink:0; max-width:45%; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;
@@ -130,8 +150,11 @@
     .tab { padding:0 12px; font-size:10px; letter-spacing:.1em; }
     .tab.theme { min-width:0; }
     .brand .txt { display:none; }
-    .row { flex-direction:column; align-items:flex-start; gap:8px; }
+    .info { flex-direction:column; align-items:flex-start; gap:8px; }
     .struct { max-width:100%; }
+    .vbtn { width:104px; }
+    .stats b { font-size:26px; }
+    .stats div { padding:12px; }
     .alert .big { font-size:28px; }
     .meta { flex-direction:column; gap:10px; }
     .sync { text-align:left; }
@@ -170,6 +193,12 @@
   </div>
 
   <div class="filters" id="filters" role="group" aria-label="Filtrer par liste"></div>
+
+  <div class="stats">
+    <div><b id="stTotal">0</b><span>Accrédités</span></div>
+    <div class="inv"><b id="stDone">0</b><span>Validés</span></div>
+    <div><b id="stLeft">0</b><span>Restants</span></div>
+  </div>
 
   <div class="toolbar">
     <span class="caps" id="counter">0 accrédité</span>
@@ -231,6 +260,16 @@
         <div id="srcMsg"></div>
       </form>
     </div>
+
+    <div class="block">
+      <div class="block-head"><span class="num">03</span><h2>Validations d'entrée</h2></div>
+      <div class="kv">
+        <div><span class="caps">Validés</span><b id="oDone">—</b></div>
+        <div><span class="caps">Restants</span><b id="oLeft">—</b></div>
+      </div>
+      <button class="btn-full" type="button" id="resetBtn">Remettre à zéro les validations</button>
+      <div id="resetMsg"></div>
+    </div>
   </section>
 </main>
 
@@ -246,13 +285,13 @@ const API_URL = 'https://script.google.com/macros/s/AKfycbwWypRbevaMIytZrU9CblM2
 const REFRESH_MS = 30000;   // rafraîchissement automatique
 const MAX_RENDER = 250;     // nb max de lignes affichées
 const TIMEOUT_MS = 20000;
-const CACHE_KEY  = 'ca_cache_v2';
+const CACHE_KEY  = 'ca_cache_v3';
 const FILTER_KEY = 'ca_filter';
 const PW_KEY     = 'ca_orga_pw';    // sessionStorage : effacé à la fermeture de l'onglet
 const THEME_KEY  = 'ca_theme';
 
 const $ = id => document.getElementById(id);
-const state = { people:[], index:[], merged:[], mergedIndex:[], tabs:[], filter:'', sourceId:'', sourceName:'', configured:true,
+const state = { people:[], index:[], merged:[], mergedIndex:[], tabs:[], checkins:{}, pending:{}, filter:'', sourceId:'', sourceName:'', configured:true,
                 lastSync:null, loading:false, offline:false, error:'', cachedAt:null };
 
 /* ============================ OUTILS ============================ */
@@ -288,9 +327,9 @@ function msg(el, type, title, detail) {
 }
 
 let flashTimer;
-function flash(text) {
-  const f = $('flash'); f.textContent = text; f.classList.remove('hidden');
-  clearTimeout(flashTimer); flashTimer = setTimeout(() => f.classList.add('hidden'), 5000);
+function flash(text, big) {
+  const f = $('flash'); f.textContent = text; f.classList.remove('hidden'); f.classList.toggle('big', !!big);
+  clearTimeout(flashTimer); flashTimer = setTimeout(() => f.classList.add('hidden'), big ? 7000 : 3500);
 }
 
 /* ============================ DONNÉES ============================ */
@@ -300,6 +339,7 @@ function applyData(d, fromCache) {
   state.sourceId   = d.sourceId || '';
   state.sourceName = d.sourceName || '';
   state.tabs = d.tabs || [];
+  state.checkins = d.checkins || {};
   const byName = (a, b) => a.nom.localeCompare(b.nom, 'fr', { sensitivity:'base' }) ||
                            a.prenom.localeCompare(b.prenom, 'fr', { sensitivity:'base' });
 
@@ -307,13 +347,14 @@ function applyData(d, fromCache) {
   state.people = (d.people || [])
     .map(r => ({ nom:r[0] || '', prenom:r[1] || '', structure:r[2] || '', tab: state.tabs[r[3]] || '' }))
     .filter(p => p.nom || p.prenom)
+    .map(p => Object.assign(p, { key: norm(p.nom + ' ' + p.prenom) }))
     .sort(byName);
   state.index = state.people.map(p => norm(p.nom + ' ' + p.prenom + ' ' + p.structure));
 
   // Vue « Tous » : doublons fusionnés (même nom + prénom), avec la liste de leurs onglets.
   const map = new Map();
   state.people.forEach(p => {
-    const k = norm(p.nom + ' ' + p.prenom);
+    const k = p.key;
     const m = map.get(k);
     if (!m) map.set(k, Object.assign({}, p, { tabs:[p.tab] }));
     else {
@@ -402,6 +443,14 @@ function renderResults() {
     state.merged.forEach((p, i) => { if (!p.tabs.includes(f) && match(state.mergedIndex[i])) elsewhere++; });
   }
 
+  // Compteurs (personnes uniques du périmètre affiché)
+  const keys = new Set();
+  for (let i = 0; i < list.length; i++) if (!f || list[i].tab === f) keys.add(list[i].key);
+  let done = 0; keys.forEach(k => { if (checkedAt(k)) done++; });
+  $('stTotal').textContent = fmt(keys.size);
+  $('stDone').textContent  = fmt(done);
+  $('stLeft').textContent  = fmt(keys.size - done);
+
   const scope = f ? ` · ${f}` : '';
   $('counter').textContent = tokens.length
     ? `${fmt(hits.length)} résultat${hits.length > 1 ? 's' : ''} / ${fmt(inScope)}${scope}`
@@ -411,9 +460,13 @@ function renderResults() {
   const shown = hits.length > MAX_RENDER ? hits.slice(0, MAX_RENDER) : hits;
   for (const i of shown) {
     const p = list[i];
-    html += `<li class="row"><div class="who"><span class="nom">${esc(p.nom)}</span> <span class="prenom">${esc(p.prenom)}</span>` +
+    const at = checkedAt(p.key);
+    const busy = state.pending[p.key] ? ' wait' : '';
+    html += `<li class="row"><div class="info"><div class="who"><span class="nom">${esc(p.nom)}</span> <span class="prenom">${esc(p.prenom)}</span>` +
             (multi && !f && p.tabs ? `<span class="tag">${esc(p.tabs.join(' · '))}</span>` : '') + `</div>` +
-            (p.structure ? `<span class="struct">${esc(p.structure)}</span>` : '') + `</li>`;
+            (p.structure ? `<span class="struct">${esc(p.structure)}</span>` : '') + `</div>` +
+            (at ? `<button class="vbtn on${busy}" data-k="${esc(p.key)}">✓ Validé<small>${esc(hm(at))}</small></button>`
+                : `<button class="vbtn${busy}" data-k="${esc(p.key)}">Valider</button>`) + `</li>`;
   }
   $('results').innerHTML = html;
 
@@ -429,6 +482,49 @@ function renderResults() {
   }
   $('empty').innerHTML = empty;
 }
+
+/* ============================ VALIDATIONS ============================ */
+const hm = iso => new Date(iso).toLocaleTimeString('fr-FR', { hour:'2-digit', minute:'2-digit' });
+
+// État affiché = serveur + actions en cours (affichage immédiat)
+function checkedAt(k) {
+  const pd = state.pending[k];
+  if (pd === 'del') return null;
+  if (pd) return pd;              // date ISO de la validation en cours
+  return state.checkins[k] || null;
+}
+
+function personByKey(k) { return state.merged.find(p => p.key === k) || state.people.find(p => p.key === k); }
+
+async function toggleCheck(k) {
+  if (state.pending[k]) return;
+  const p = personByKey(k); if (!p) return;
+  const name = (p.nom + ' ' + p.prenom).trim();
+  const was = checkedAt(k);
+
+  if (was && !confirm(`Annuler la validation de ${name} (validé à ${hm(was)}) ?`)) return;
+
+  state.pending[k] = was ? 'del' : new Date().toISOString();
+  renderResults();
+  try {
+    const r = await apiPost(was ? { action:'uncheck', key:k } : { action:'checkin', key:k, nom:p.nom, prenom:p.prenom });
+    if (!r.ok) throw new Error(r.error || 'Erreur serveur');
+    state.checkins = r.checkins || state.checkins;
+    if (!was && r.already) flash(`⚠ Déjà validé à ${hm(r.at)} — ${name}`, true);
+    else if (!was) { flash(`✓ Entrée validée — ${name}`); const q = $('q'); if (q.value) { q.focus(); q.select(); } }
+    else flash(`Validation annulée — ${name}`);
+  } catch (err) {
+    flash((err.network ? 'Hors ligne — ' : '') + 'Échec : ' + (was ? 'annulation' : 'validation') + ' non enregistrée', true);
+  } finally {
+    delete state.pending[k];
+    renderResults(); renderOrgaSource();
+  }
+}
+
+$('results').addEventListener('click', e => {
+  const b = e.target.closest('.vbtn');
+  if (b) toggleCheck(b.dataset.k);
+});
 
 /* ============================ FILTRES ============================ */
 function setFilter(tab, silent) {
@@ -460,6 +556,9 @@ function renderOrgaSource() {
   $('oSrcId').textContent    = state.sourceId || '—';
   $('oSrcCount').textContent = state.configured ? fmt(state.merged.length) + ' personnes uniques' : '—';
   $('oSrcTabs').textContent  = state.tabs.length ? state.tabs.join(' · ') : '—';
+  const doneAll = state.merged.filter(p => checkedAt(p.key)).length;
+  $('oDone').textContent = state.configured ? fmt(doneAll) : '—';
+  $('oLeft').textContent = state.configured ? fmt(state.merged.length - doneAll) : '—';
 
   // Menu « Liste » du formulaire d'ajout (garde le choix en cours si possible).
   const sel = $('fTab'), prev = sel.value;
@@ -495,6 +594,19 @@ $('loginForm').addEventListener('submit', async e => {
     renderOrga();
   } catch (err) { msg('loginMsg', 'err', 'Erreur', err.message); }
   finally { $('loginBtn').disabled = false; }
+});
+
+$('resetBtn').addEventListener('click', async () => {
+  if (!confirm('Remettre à zéro TOUTES les validations d\'entrée ? Cette action est définitive.')) return;
+  $('resetBtn').disabled = true; msg('resetMsg');
+  try {
+    const r = await apiPost({ action:'resetCheckins', password: load_('sessionStorage', PW_KEY) });
+    if (relockIfAuth(r)) return;
+    if (!r.ok) return msg('resetMsg', 'err', 'Échec', r.error);
+    applyData(r.list, false);
+    msg('resetMsg', 'ok', 'Validations remises à zéro');
+  } catch (err) { msg('resetMsg', 'err', 'Erreur', err.message); }
+  finally { $('resetBtn').disabled = false; }
 });
 
 $('logoutBtn').addEventListener('click', () => { store('sessionStorage', PW_KEY, null); renderOrga(); });
