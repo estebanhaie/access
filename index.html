@@ -1,0 +1,561 @@
+<!DOCTYPE html>
+<html lang="fr" data-theme="dark">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#000000">
+<meta name="robots" content="noindex, nofollow">
+<title>Contrôle d'accès</title>
+<style>
+  /* ===================== THÈME ===================== */
+  :root, [data-theme="dark"] { --bg:#000000; --fg:#FFFFFF; --line:#2B2B2B; }
+  [data-theme="light"]       { --bg:#FFFFFF; --fg:#000000; --line:#E4E4E4; }
+
+  * { box-sizing:border-box; margin:0; padding:0; }
+  html, body { background:var(--bg); color:var(--fg); }
+  body {
+    font-family: Inter, "Helvetica Neue", Helvetica, Arial, system-ui, -apple-system, sans-serif;
+    font-size:16px; line-height:1.35; min-height:100vh;
+    -webkit-font-smoothing:antialiased; -webkit-tap-highlight-color:transparent;
+    padding-bottom: env(safe-area-inset-bottom);
+  }
+  button, input { font:inherit; color:inherit; background:none; border:0; border-radius:0; -webkit-appearance:none; appearance:none; outline:none; }
+  button { cursor:pointer; }
+  .wrap { max-width:880px; margin:0 auto; padding:0 20px; }
+  .hidden { display:none !important; }
+  .caps { text-transform:uppercase; letter-spacing:.12em; font-size:11px; font-weight:600; }
+
+  /* ===================== EN-TÊTE ===================== */
+  header { position:sticky; top:0; z-index:20; background:var(--bg); border-bottom:1px solid var(--fg); }
+  .bar { display:flex; justify-content:space-between; align-items:stretch; height:56px; }
+  .brand { display:flex; align-items:center; gap:10px; font-weight:800; font-size:12px; letter-spacing:.16em; text-transform:uppercase; }
+  .brand .sq { width:12px; height:12px; background:var(--fg); }
+  nav { display:flex; margin-right:-20px; }
+  .tab { padding:0 16px; border-left:1px solid var(--fg); font-size:11px; font-weight:700; letter-spacing:.14em; text-transform:uppercase; }
+  .tab[aria-selected="true"] { background:var(--fg); color:var(--bg); }
+  .tab.theme { min-width:64px; }
+
+  /* ===================== META ===================== */
+  .meta { display:flex; justify-content:space-between; align-items:baseline; gap:16px; padding:18px 0 14px; border-bottom:1px solid var(--line); }
+  .meta .src { min-width:0; }
+  .meta .src b { display:block; font-size:14px; font-weight:700; margin-top:4px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .sync { white-space:nowrap; text-align:right; }
+  .dot { display:inline-block; width:7px; height:7px; margin-right:6px; border:1px solid var(--fg); vertical-align:1px; }
+  .dot.on { background:var(--fg); }
+
+  /* ===================== RECHERCHE ===================== */
+  .search { position:relative; margin-top:24px; }
+  .search input {
+    width:100%; height:76px; padding:0 64px 0 20px; border:1px solid var(--fg);
+    font-size:24px; font-weight:500; letter-spacing:.01em;
+  }
+  .search input:focus { border-width:3px; padding-left:18px; padding-right:62px; }
+  .search input::placeholder { color:var(--fg); opacity:.45; font-size:14px; font-weight:600; letter-spacing:.12em; text-transform:uppercase; }
+  .search input::-webkit-search-cancel-button { display:none; }
+  .clear { position:absolute; right:0; top:0; width:64px; height:76px; font-size:28px; font-weight:300; }
+
+  /* Filtres par liste (onglets du Sheet) */
+  .filters { display:flex; gap:8px; margin-top:12px; overflow-x:auto; scrollbar-width:none; -webkit-overflow-scrolling:touch; }
+  .filters::-webkit-scrollbar { display:none; }
+  .chip { flex-shrink:0; height:44px; padding:0 14px; border:1px solid var(--fg); white-space:nowrap;
+          font-size:11px; font-weight:700; letter-spacing:.12em; text-transform:uppercase; }
+  .chip span { margin-left:8px; font-weight:400; }
+  .chip[aria-pressed="true"] { background:var(--fg); color:var(--bg); border-width:1px; }
+  .tag { display:block; margin-top:4px; font-size:10px; font-weight:700; letter-spacing:.14em; text-transform:uppercase; }
+  .alert .switch { margin-top:20px; height:48px; padding:0 18px; border:2px solid var(--bg); color:var(--bg);
+                   font-size:12px; font-weight:800; letter-spacing:.14em; text-transform:uppercase; }
+  .field select { width:100%; height:56px; padding:0 44px 0 16px; border:1px solid var(--fg); border-radius:0; font:inherit; font-size:18px;
+                  color:var(--fg); background:var(--bg); -webkit-appearance:none; appearance:none; outline:none;
+                  background-image:linear-gradient(45deg, transparent 50%, var(--fg) 50%), linear-gradient(-45deg, transparent 50%, var(--fg) 50%);
+                  background-size:6px 6px; background-repeat:no-repeat; background-position:calc(100% - 24px) 50%, calc(100% - 18px) 50%; }
+  .field select:focus { border-width:3px; padding-left:14px; }
+
+  .toolbar { display:flex; justify-content:space-between; align-items:center; padding:16px 0; border-bottom:1px solid var(--fg); }
+  .btn-line { height:40px; padding:0 16px; border:1px solid var(--fg); font-size:11px; font-weight:700; letter-spacing:.14em; text-transform:uppercase; }
+  .btn-line:active, .btn-line.busy { background:var(--fg); color:var(--bg); }
+
+  /* ===================== RÉSULTATS ===================== */
+  ul.results { list-style:none; }
+  .row { display:flex; justify-content:space-between; align-items:center; gap:16px; padding:18px 0; border-bottom:1px solid var(--line); }
+  .who { min-width:0; font-size:20px; }
+  .nom { font-weight:800; text-transform:uppercase; letter-spacing:.01em; }
+  .prenom { font-weight:400; }
+  .struct { flex-shrink:0; max-width:45%; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;
+            border:1px solid var(--fg); padding:6px 10px; font-size:11px; font-weight:700; letter-spacing:.1em; text-transform:uppercase; }
+  .more { padding:20px 0; text-align:center; }
+
+  /* Blocs inversés (alertes / validations) */
+  .alert { margin-top:24px; background:var(--fg); color:var(--bg); padding:36px 24px; text-transform:uppercase; }
+  .alert .big { font-size:34px; font-weight:900; line-height:1.05; letter-spacing:-.01em; }
+  .alert .sub { margin-top:14px; font-size:15px; font-weight:800; letter-spacing:.14em; }
+  .notice { margin-top:16px; border:3px solid var(--fg); padding:16px 18px; font-size:13px; font-weight:700; letter-spacing:.06em; text-transform:uppercase; }
+  .notice small { display:block; margin-top:6px; text-transform:none; letter-spacing:0; font-weight:400; font-size:13px; }
+
+  .flash { position:fixed; left:0; right:0; bottom:0; z-index:50; background:var(--fg); color:var(--bg);
+           padding:18px 20px calc(18px + env(safe-area-inset-bottom)); text-align:center;
+           font-size:13px; font-weight:800; letter-spacing:.12em; text-transform:uppercase; }
+
+  /* ===================== ORGANISATEUR ===================== */
+  .lock { min-height:calc(100vh - 57px); display:flex; align-items:center; justify-content:center; padding:40px 20px; }
+  .lock form { width:100%; max-width:380px; }
+  .lock h1 { font-size:13px; font-weight:800; letter-spacing:.16em; text-transform:uppercase; margin-bottom:28px; padding-bottom:14px; border-bottom:1px solid var(--fg); }
+
+  .field { display:block; margin-bottom:14px; }
+  .field span { display:block; margin-bottom:8px; }
+  .field input { width:100%; height:56px; padding:0 16px; border:1px solid var(--fg); font-size:18px; }
+  .field input:focus { border-width:3px; padding:0 14px; }
+
+  .btn-full { width:100%; height:60px; margin-top:8px; background:var(--fg); color:var(--bg); border:1px solid var(--fg);
+              font-size:13px; font-weight:800; letter-spacing:.16em; text-transform:uppercase; }
+  .btn-full:disabled { opacity:.5; cursor:wait; }
+  .btn-full:active:not(:disabled) { background:var(--bg); color:var(--fg); }
+
+  .block { padding:40px 0; border-bottom:1px solid var(--fg); }
+  .block-head { display:flex; align-items:baseline; gap:16px; margin-bottom:24px; }
+  .block-head .num { font-size:44px; font-weight:900; line-height:1; letter-spacing:-.03em; }
+  .block-head h2 { font-size:14px; font-weight:800; letter-spacing:.14em; text-transform:uppercase; }
+  .kv { border-top:1px solid var(--line); margin-bottom:24px; }
+  .kv div { display:flex; justify-content:space-between; gap:16px; padding:12px 0; border-bottom:1px solid var(--line); }
+  .kv b { font-weight:700; font-size:14px; text-align:right; word-break:break-all; }
+  .orga-top { display:flex; justify-content:space-between; align-items:center; padding:20px 0; border-bottom:1px solid var(--fg); }
+
+  .msg { margin-top:16px; padding:16px 18px; font-size:13px; font-weight:800; letter-spacing:.08em; text-transform:uppercase; }
+  .msg.ok  { background:var(--fg); color:var(--bg); }
+  .msg.err { border:3px solid var(--fg); }
+  .msg small { display:block; margin-top:6px; text-transform:none; letter-spacing:0; font-weight:400; }
+
+  @media (max-width:560px) {
+    .wrap { padding:0 16px; }
+    nav { margin-right:-16px; }
+    .tab { padding:0 12px; font-size:10px; letter-spacing:.1em; }
+    .tab.theme { min-width:0; }
+    .brand .txt { display:none; }
+    .row { flex-direction:column; align-items:flex-start; gap:8px; }
+    .struct { max-width:100%; }
+    .alert .big { font-size:28px; }
+    .meta { flex-direction:column; gap:10px; }
+    .sync { text-align:left; }
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="wrap bar">
+    <div class="brand"><span class="sq"></span><span class="txt">Contrôle d'accès</span></div>
+    <nav role="tablist">
+      <button class="tab" role="tab" id="tab-agent" aria-selected="true">Agent</button>
+      <button class="tab" role="tab" id="tab-orga" aria-selected="false">Organisateur</button>
+      <button class="tab theme" id="themeBtn" title="Changer de mode">Jour</button>
+    </nav>
+  </div>
+</header>
+
+<!-- ======================= VUE AGENT ======================= -->
+<main id="view-agent" class="wrap">
+  <div class="meta">
+    <div class="src">
+      <span class="caps">Liste active</span>
+      <b id="srcName">—</b>
+    </div>
+    <div class="sync caps"><span class="dot" id="syncDot"></span><span id="syncLabel">Connexion…</span></div>
+  </div>
+
+  <div id="agentNotice"></div>
+
+  <div class="search">
+    <input id="q" type="search" inputmode="search" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false"
+           placeholder="Nom, prénom ou structure" aria-label="Rechercher">
+    <button class="clear hidden" id="clearBtn" aria-label="Effacer">×</button>
+  </div>
+
+  <div class="filters" id="filters" role="group" aria-label="Filtrer par liste"></div>
+
+  <div class="toolbar">
+    <span class="caps" id="counter">0 accrédité</span>
+    <button class="btn-line" id="refreshBtn">Rafraîchir</button>
+  </div>
+
+  <ul class="results" id="results"></ul>
+  <div id="empty"></div>
+</main>
+
+<!-- ======================= VUE ORGANISATEUR ======================= -->
+<main id="view-orga" class="hidden">
+  <!-- Verrou -->
+  <section id="lockScreen" class="lock">
+    <form id="loginForm" autocomplete="off">
+      <h1>Espace organisateur</h1>
+      <label class="field">
+        <span class="caps">Mot de passe</span>
+        <input id="pw" type="password" autocomplete="current-password" required>
+      </label>
+      <button class="btn-full" type="submit" id="loginBtn">Déverrouiller</button>
+      <div id="loginMsg"></div>
+    </form>
+  </section>
+
+  <!-- Contenu déverrouillé -->
+  <section id="orgaPanel" class="wrap hidden">
+    <div class="orga-top">
+      <span class="caps">Session organisateur active</span>
+      <button class="btn-line" id="logoutBtn">Verrouiller</button>
+    </div>
+
+    <div class="block">
+      <div class="block-head"><span class="num">01</span><h2>Ajouter une personne</h2></div>
+      <form id="addForm" autocomplete="off">
+        <label class="field"><span class="caps">Liste (onglet du Sheet)</span><select id="fTab"></select></label>
+        <label class="field"><span class="caps">Nom</span><input id="fNom" required maxlength="120" autocapitalize="characters"></label>
+        <label class="field"><span class="caps">Prénom</span><input id="fPrenom" required maxlength="120" autocapitalize="words"></label>
+        <label class="field"><span class="caps">Structure</span><input id="fStructure" required maxlength="120"></label>
+        <button class="btn-full" type="submit" id="addBtn">Ajouter à la liste</button>
+        <div id="addMsg"></div>
+      </form>
+    </div>
+
+    <div class="block">
+      <div class="block-head"><span class="num">02</span><h2>Changer de guestlist</h2></div>
+      <div class="kv">
+        <div><span class="caps">Fichier actif</span><b id="oSrcName">—</b></div>
+        <div><span class="caps">ID</span><b id="oSrcId">—</b></div>
+        <div><span class="caps">Onglets fusionnés</span><b id="oSrcTabs">—</b></div>
+        <div><span class="caps">Accrédités</span><b id="oSrcCount">—</b></div>
+      </div>
+      <form id="srcForm" autocomplete="off">
+        <label class="field">
+          <span class="caps">URL ou ID du nouveau Google Sheet</span>
+          <input id="fSource" required placeholder="https://docs.google.com/spreadsheets/d/…">
+        </label>
+        <button class="btn-full" type="submit" id="srcBtn">Définir comme source active</button>
+        <div id="srcMsg"></div>
+      </form>
+    </div>
+  </section>
+</main>
+
+<div id="flash" class="flash hidden"></div>
+
+<script>
+/* =================================================================
+ *  CONFIGURATION — collez ici l'URL de votre application web
+ *  Apps Script (elle se termine par /exec)
+ * ================================================================= */
+const API_URL = 'https://script.google.com/macros/s/AKfycbwWypRbevaMIytZrU9CblM2eipXvLwpzdTCnYRUs15st-CXJ3NwbhZKrZAkPn77seSESA/exec';
+
+const REFRESH_MS = 30000;   // rafraîchissement automatique
+const MAX_RENDER = 250;     // nb max de lignes affichées
+const TIMEOUT_MS = 20000;
+const CACHE_KEY  = 'ca_cache_v2';
+const FILTER_KEY = 'ca_filter';
+const PW_KEY     = 'ca_orga_pw';    // sessionStorage : effacé à la fermeture de l'onglet
+const THEME_KEY  = 'ca_theme';
+
+const $ = id => document.getElementById(id);
+const state = { people:[], index:[], tabs:[], filter:'', sourceId:'', sourceName:'', configured:true,
+                lastSync:null, loading:false, offline:false, error:'', cachedAt:null };
+
+/* ============================ OUTILS ============================ */
+const norm = s => String(s || '').normalize('NFD').replace(/[̀-ͯ]/g, '')
+  .toLowerCase().replace(/[’`]/g, "'").replace(/[-_.,/]/g, ' ').replace(/\s+/g, ' ').trim();
+
+const esc = s => String(s || '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const fmt = n => n.toLocaleString('fr-FR');
+const hhmm = d => d.toLocaleTimeString('fr-FR', { hour:'2-digit', minute:'2-digit', second:'2-digit' });
+const apiReady = () => /^https:\/\/script\.google(usercontent)?\.com\//.test(API_URL);
+
+function store(kind, key, val) { try { val == null ? window[kind].removeItem(key) : window[kind].setItem(key, val); } catch (_) {} }
+function load_(kind, key) { try { return window[kind].getItem(key); } catch (_) { return null; } }
+
+async function fetchJSON(url, opts) {
+  const ctrl = new AbortController();
+  const t = setTimeout(() => ctrl.abort(), TIMEOUT_MS);
+  let res;
+  try { res = await fetch(url, Object.assign({ redirect:'follow', signal:ctrl.signal }, opts)); }
+  catch (e) { const err = new Error('Connexion impossible'); err.network = true; throw err; }
+  finally { clearTimeout(t); }
+  const text = await res.text();
+  try { return JSON.parse(text); }
+  catch (_) { throw new Error('Réponse invalide du serveur — vérifiez le déploiement (accès : « Tout le monde »).'); }
+}
+
+const apiGet  = () => fetchJSON(API_URL + '?action=list&_=' + Date.now(), { method:'GET', cache:'no-store' });
+// Pas d'en-tête Content-Type → envoyé en text/plain → pas de preflight CORS.
+const apiPost = payload => fetchJSON(API_URL, { method:'POST', body: JSON.stringify(payload) });
+
+function msg(el, type, title, detail) {
+  $(el).innerHTML = title ? `<div class="msg ${type}">${esc(title)}${detail ? `<small>${esc(detail)}</small>` : ''}</div>` : '';
+}
+
+let flashTimer;
+function flash(text) {
+  const f = $('flash'); f.textContent = text; f.classList.remove('hidden');
+  clearTimeout(flashTimer); flashTimer = setTimeout(() => f.classList.add('hidden'), 5000);
+}
+
+/* ============================ DONNÉES ============================ */
+function applyData(d, fromCache) {
+  const prevId = state.sourceId;
+  state.configured = d.configured !== false;
+  state.sourceId   = d.sourceId || '';
+  state.sourceName = d.sourceName || '';
+  state.tabs = d.tabs || [];
+  state.people = (d.people || [])
+    .map(r => ({ nom:r[0] || '', prenom:r[1] || '', structure:r[2] || '', tab: state.tabs[r[3]] || '' }))
+    .sort((a, b) => a.nom.localeCompare(b.nom, 'fr', { sensitivity:'base' }) ||
+                    a.prenom.localeCompare(b.prenom, 'fr', { sensitivity:'base' }));
+  state.index = state.people.map(p => norm(p.nom + ' ' + p.prenom + ' ' + p.structure));
+
+  if (!fromCache && prevId && state.sourceId && prevId !== state.sourceId) {
+    flash('Nouvelle guestlist chargée — ' + state.sourceName);
+  }
+  // Si l'onglet filtré n'existe plus (renommé / supprimé), retour sur « Tous ».
+  if (state.filter && !state.tabs.includes(state.filter)) setFilter('', true);
+  renderMeta(); renderFilters(); renderResults(); renderOrgaSource();
+}
+
+async function sync(manual) {
+  if (!apiReady()) { renderMeta(); return; }
+  if (state.loading) return;
+  state.loading = true;
+  $('refreshBtn').classList.add('busy');
+  $('syncLabel').textContent = 'Synchronisation…';
+  try {
+    const d = await apiGet();
+    if (!d.ok) throw new Error(d.error || 'Erreur serveur');
+    applyData(d, false);
+    state.lastSync = new Date(); state.offline = false; state.error = ''; state.cachedAt = null;
+    store('localStorage', CACHE_KEY, JSON.stringify(Object.assign({}, d, { savedAt: Date.now() })));
+    if (manual) flash('Liste à jour — ' + fmt(state.people.length) + ' accrédités');
+  } catch (err) {
+    state.offline = !!err.network;
+    state.error = err.message;
+  } finally {
+    state.loading = false;
+    $('refreshBtn').classList.remove('busy');
+    renderMeta();
+  }
+}
+
+/* ============================ RENDU AGENT ============================ */
+function renderMeta() {
+  $('srcName').textContent = state.sourceName || (state.configured ? '—' : 'Aucune guestlist définie');
+  const dot = $('syncDot'), lbl = $('syncLabel');
+  if (!apiReady())           { dot.className = 'dot';    lbl.textContent = 'Non configuré'; }
+  else if (state.loading)    { /* libellé déjà posé */ }
+  else if (state.error)      { dot.className = 'dot';    lbl.textContent = state.offline ? 'Hors ligne' : 'Erreur'; }
+  else if (state.lastSync)   { dot.className = 'dot on'; lbl.textContent = 'Synchro ' + hhmm(state.lastSync); }
+
+  let n = '';
+  if (!apiReady()) {
+    n = `<div class="notice">Application non configurée<small>Collez l'URL de votre application web Apps Script dans la constante API_URL du fichier index.html.</small></div>`;
+  } else if (state.error) {
+    const when = state.cachedAt ? ' Données affichées : ' + new Date(state.cachedAt).toLocaleString('fr-FR') + '.' :
+                 state.lastSync ? ' Dernière synchro réussie : ' + hhmm(state.lastSync) + '.' : '';
+    n = `<div class="notice">${state.offline ? 'Hors ligne — liste locale' : 'Erreur serveur'}<small>${esc(state.error)}${esc(when)}</small></div>`;
+  } else if (!state.configured) {
+    n = `<div class="notice">Aucune guestlist active<small>L'organisateur doit définir un Google Sheet source dans l'espace Organisateur.</small></div>`;
+  }
+  $('agentNotice').innerHTML = n;
+}
+
+function renderResults() {
+  const raw = $('q').value;
+  $('clearBtn').classList.toggle('hidden', !raw);
+  const tokens = norm(raw).split(' ').filter(Boolean);
+  const total = state.people.length;
+
+  const f = state.filter;
+  const multi = state.tabs.length > 1;
+
+  const hits = [];       // résultats dans la liste sélectionnée
+  let elsewhere = 0;     // résultats dans les AUTRES listes (si filtre actif)
+  let inScope = 0;       // taille de la liste sélectionnée
+  for (let i = 0; i < total; i++) {
+    const inTab = !f || state.people[i].tab === f;
+    if (inTab) inScope++;
+    const h = state.index[i];
+    if (tokens.every(t => h.includes(t))) { if (inTab) hits.push(i); else elsewhere++; }
+  }
+
+  const scope = f ? ` · ${f}` : '';
+  $('counter').textContent = tokens.length
+    ? `${fmt(hits.length)} résultat${hits.length > 1 ? 's' : ''} / ${fmt(inScope)}${scope}`
+    : `${fmt(inScope)} accrédité${inScope > 1 ? 's' : ''}${scope}`;
+
+  let html = '';
+  const shown = hits.length > MAX_RENDER ? hits.slice(0, MAX_RENDER) : hits;
+  for (const i of shown) {
+    const p = state.people[i];
+    html += `<li class="row"><div class="who"><span class="nom">${esc(p.nom)}</span> <span class="prenom">${esc(p.prenom)}</span>` +
+            (multi && !f && p.tab ? `<span class="tag">${esc(p.tab)}</span>` : '') + `</div>` +
+            (p.structure ? `<span class="struct">${esc(p.structure)}</span>` : '') + `</li>`;
+  }
+  $('results').innerHTML = html;
+
+  let empty = '';
+  if (hits.length > MAX_RENDER) {
+    empty = `<div class="more caps">+ ${fmt(hits.length - MAX_RENDER)} autres — affinez la recherche</div>`;
+  } else if (tokens.length && !hits.length) {
+    empty = `<div class="alert"><div class="big">Aucun résultat${f ? ' dans « ' + esc(f) + ' »' : ''}</div>` +
+            (elsewhere
+              ? `<div class="sub">— ${fmt(elsewhere)} résultat${elsewhere > 1 ? 's' : ''} dans d'autres listes</div>` +
+                `<button class="switch" onclick="setFilter('')">Voir dans « Tous »</button>`
+              : `<div class="sub">— Accès non autorisé</div>`) + `</div>`;
+  }
+  $('empty').innerHTML = empty;
+}
+
+/* ============================ FILTRES ============================ */
+function setFilter(tab, silent) {
+  state.filter = tab || '';
+  store('localStorage', FILTER_KEY, state.filter || null);
+  if (!silent) { renderFilters(); renderResults(); }
+}
+
+function renderFilters() {
+  const box = $('filters');
+  if (state.tabs.length < 2) { box.innerHTML = ''; box.classList.add('hidden'); return; }
+  box.classList.remove('hidden');
+  const counts = {};
+  state.people.forEach(p => { counts[p.tab] = (counts[p.tab] || 0) + 1; });
+  const chip = (val, label, n) =>
+    `<button class="chip" data-tab="${esc(val)}" aria-pressed="${state.filter === val}">${esc(label)}<span>${fmt(n)}</span></button>`;
+  box.innerHTML = chip('', 'Tous', state.people.length) +
+                  state.tabs.map(t => chip(t, t, counts[t] || 0)).join('');
+}
+
+$('filters').addEventListener('click', e => {
+  const b = e.target.closest('.chip');
+  if (b) { setFilter(b.dataset.tab); }
+});
+
+/* ============================ ORGANISATEUR ============================ */
+function renderOrgaSource() {
+  $('oSrcName').textContent  = state.sourceName || 'Aucun';
+  $('oSrcId').textContent    = state.sourceId || '—';
+  $('oSrcCount').textContent = state.configured ? fmt(state.people.length) : '—';
+  $('oSrcTabs').textContent  = state.tabs.length ? state.tabs.join(' · ') : '—';
+
+  // Menu « Liste » du formulaire d'ajout (garde le choix en cours si possible).
+  const sel = $('fTab'), prev = sel.value;
+  sel.innerHTML = state.tabs.length
+    ? state.tabs.map(t => `<option value="${esc(t)}">${esc(t)}</option>`).join('')
+    : '<option value="">(premier onglet)</option>';
+  if (state.tabs.includes(prev)) sel.value = prev;
+}
+
+function renderOrga() {
+  const unlocked = !!load_('sessionStorage', PW_KEY);
+  $('lockScreen').classList.toggle('hidden', unlocked);
+  $('orgaPanel').classList.toggle('hidden', !unlocked);
+  if (!unlocked) setTimeout(() => $('pw').focus(), 50);
+  renderOrgaSource();
+}
+
+function relockIfAuth(r) {
+  if (r && r.code === 'AUTH') { store('sessionStorage', PW_KEY, null); renderOrga(); msg('loginMsg', 'err', 'Session expirée', r.error); return true; }
+  return false;
+}
+
+$('loginForm').addEventListener('submit', async e => {
+  e.preventDefault();
+  const pw = $('pw').value;
+  if (!apiReady()) return msg('loginMsg', 'err', 'Application non configurée', 'API_URL manquante dans index.html.');
+  $('loginBtn').disabled = true; msg('loginMsg');
+  try {
+    const r = await apiPost({ action:'login', password: pw });
+    if (!r.ok) return msg('loginMsg', 'err', r.code === 'LOCKED' ? 'Accès bloqué' : 'Accès refusé', r.error);
+    store('sessionStorage', PW_KEY, pw);
+    $('pw').value = '';
+    renderOrga();
+  } catch (err) { msg('loginMsg', 'err', 'Erreur', err.message); }
+  finally { $('loginBtn').disabled = false; }
+});
+
+$('logoutBtn').addEventListener('click', () => { store('sessionStorage', PW_KEY, null); renderOrga(); });
+
+$('addForm').addEventListener('submit', async e => {
+  e.preventDefault();
+  const nom = $('fNom').value.trim(), prenom = $('fPrenom').value.trim(), structure = $('fStructure').value.trim();
+  if (!nom || !prenom || !structure) return msg('addMsg', 'err', 'Champs manquants', 'Nom, Prénom et Structure sont obligatoires.');
+  $('addBtn').disabled = true; $('addBtn').textContent = 'Envoi…'; msg('addMsg');
+  try {
+    const tab = $('fTab').value;
+    const r = await apiPost({ action:'add', password: load_('sessionStorage', PW_KEY), nom, prenom, structure, tab });
+    if (relockIfAuth(r)) return;
+    if (!r.ok) return msg('addMsg', 'err', 'Échec de l\'ajout', r.error);
+    ['fNom', 'fPrenom', 'fStructure'].forEach(id => $(id).value = ''); // garde la liste choisie
+    $('fNom').focus();
+    msg('addMsg', 'ok', 'Ajouté — ' + r.added.nom + ' ' + r.added.prenom,
+        r.added.structure + (r.added.tab ? ' · liste « ' + r.added.tab + ' »' : ''));
+    if (r.list) { applyData(r.list, false); state.lastSync = new Date(); state.error = ''; renderMeta(); }
+  } catch (err) { msg('addMsg', 'err', 'Erreur', err.message); }
+  finally { $('addBtn').disabled = false; $('addBtn').textContent = 'Ajouter à la liste'; }
+});
+
+$('srcForm').addEventListener('submit', async e => {
+  e.preventDefault();
+  const source = $('fSource').value.trim();
+  if (!source) return;
+  $('srcBtn').disabled = true; $('srcBtn').textContent = 'Vérification…'; msg('srcMsg');
+  try {
+    const r = await apiPost({ action:'setSource', password: load_('sessionStorage', PW_KEY), source });
+    if (relockIfAuth(r)) return;
+    if (!r.ok) return msg('srcMsg', 'err', 'Source refusée', r.error);
+    $('fSource').value = '';
+    applyData(r.list, false); state.lastSync = new Date(); state.error = ''; renderMeta();
+    msg('srcMsg', 'ok', 'Source active — ' + r.list.sourceName,
+        fmt(r.list.count) + ' personnes chargées.' + (r.writable ? '' : ' ATTENTION : fichier en lecture seule, l\'ajout de personnes échouera.'));
+  } catch (err) { msg('srcMsg', 'err', 'Erreur', err.message); }
+  finally { $('srcBtn').disabled = false; $('srcBtn').textContent = 'Définir comme source active'; }
+});
+
+/* ============================ NAVIGATION ============================ */
+function showView(v) {
+  const orga = v === 'orga';
+  $('view-agent').classList.toggle('hidden', orga);
+  $('view-orga').classList.toggle('hidden', !orga);
+  $('tab-agent').setAttribute('aria-selected', String(!orga));
+  $('tab-orga').setAttribute('aria-selected', String(orga));
+  store('sessionStorage', 'ca_view', v);
+  if (orga) renderOrga(); else $('q').focus();
+  window.scrollTo(0, 0);
+}
+$('tab-agent').addEventListener('click', () => showView('agent'));
+$('tab-orga').addEventListener('click', () => showView('orga'));
+
+/* ============================ THÈME ============================ */
+function setTheme(t) {
+  document.documentElement.setAttribute('data-theme', t);
+  document.querySelector('meta[name="theme-color"]').setAttribute('content', t === 'light' ? '#FFFFFF' : '#000000');
+  $('themeBtn').textContent = t === 'light' ? 'Nuit' : 'Jour';
+  store('localStorage', THEME_KEY, t);
+}
+$('themeBtn').addEventListener('click', () =>
+  setTheme(document.documentElement.getAttribute('data-theme') === 'light' ? 'dark' : 'light'));
+
+/* ============================ RECHERCHE ============================ */
+$('q').addEventListener('input', renderResults);
+$('q').addEventListener('keydown', e => { if (e.key === 'Escape') { $('q').value = ''; renderResults(); } });
+$('clearBtn').addEventListener('click', () => { $('q').value = ''; renderResults(); $('q').focus(); });
+$('refreshBtn').addEventListener('click', () => sync(true));
+
+/* ============================ DÉMARRAGE ============================ */
+setTheme(load_('localStorage', THEME_KEY) || 'dark');
+state.filter = load_('localStorage', FILTER_KEY) || '';
+
+// Liste locale en cache : l'agent garde une liste même si le réseau tombe.
+const cached = load_('localStorage', CACHE_KEY);
+if (cached) { try { const c = JSON.parse(cached); applyData(c, true); state.cachedAt = c.savedAt; } catch (_) {} }
+
+renderMeta(); renderResults();
+showView(load_('sessionStorage', 'ca_view') === 'orga' ? 'orga' : 'agent');
+sync(false);
+
+setInterval(() => { if (!document.hidden) sync(false); }, REFRESH_MS);
+document.addEventListener('visibilitychange', () => { if (!document.hidden) sync(false); });
+window.addEventListener('online', () => sync(false));
+</script>
+</body>
+</html>
